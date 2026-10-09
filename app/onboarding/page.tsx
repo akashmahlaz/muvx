@@ -5,30 +5,60 @@ import { useRouter } from "next/navigation"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { authClient } from "@/lib/auth-client"
 import { useAuthStore } from "@/lib/stores/auth-store"
-import { useOnboardingStore, type FleetSize, type PrimaryUse } from "@/lib/stores/onboarding-store"
+import {
+  useOnboardingStore,
+  GOALS,
+  type BusinessType,
+  type FleetSize,
+  type TeamSize,
+  type GeographicScope,
+  type CurrentTool,
+  type FreightType,
+  type TeamRole,
+  type TeamInvite,
+} from "@/lib/stores/onboarding-store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Card } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Loader2,
   Building2,
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
-  Truck,
   Hash,
+  Truck,
   Users,
   Sparkles,
   ShieldCheck,
   X,
+  Plus,
+  Mail,
+  Trash2,
+  Check,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import {
+  btnPrimary,
+  btnSecondary,
+  inputBase,
+  fieldLabel,
+  fieldError,
+  errorBanner,
+  displayHeading,
+  italicAccent,
+  eyebrowStop,
+} from "@/lib/auth-theme"
 
-// Reserved slugs that conflict with routes
+// ─── Options ───
 const RESERVED_SLUGS = [
   "admin", "api", "dashboard", "settings", "login", "signup",
   "onboarding", "select-org", "auth-redirect", "www", "app",
@@ -36,21 +66,67 @@ const RESERVED_SLUGS = [
   "contact", "blog", "docs", "status", "public", "static",
 ]
 
-const FLEET_SIZE_OPTIONS: { value: FleetSize; label: string; description: string }[] = [
-  { value: "1-5", label: "1–5 trucks", description: "Owner-operator or small fleet" },
-  { value: "6-20", label: "6–20 trucks", description: "Growing regional carrier" },
-  { value: "21-50", label: "21–50 trucks", description: "Mid-size operation" },
-  { value: "51-100", label: "51–100 trucks", description: "Established carrier" },
-  { value: "100+", label: "100+ trucks", description: "Enterprise fleet" },
+const BUSINESS_OPTIONS: { value: BusinessType; label: string; blurb: string }[] = [
+  { value: "carrier", label: "Carrier", blurb: "You run your own trucks and drivers." },
+  { value: "broker", label: "Broker", blurb: "You arrange freight for other carriers." },
+  { value: "both", label: "Both", blurb: "You operate trucks and broker loads." },
 ]
 
-const PRIMARY_USE_OPTIONS: { value: PrimaryUse; label: string; description: string }[] = [
-  { value: "long_haul", label: "Long-haul", description: "Over-the-road, multi-state freight" },
-  { value: "ltl", label: "LTL", description: "Less-than-truckload, partial shipments" },
-  { value: "local", label: "Local delivery", description: "Regional and last-mile" },
-  { value: "owner_operator", label: "Owner-operator", description: "Single truck, leased or owned" },
-  { value: "brokerage", label: "Brokerage", description: "Arrange freight for carriers" },
-  { value: "other", label: "Other", description: "Specialized or mixed operations" },
+const FLEET_SIZE_OPTIONS: { value: FleetSize; label: string }[] = [
+  { value: "1-5", label: "1–5 trucks" },
+  { value: "6-20", label: "6–20 trucks" },
+  { value: "21-50", label: "21–50 trucks" },
+  { value: "51-100", label: "51–100 trucks" },
+  { value: "100+", label: "100+ trucks" },
+]
+
+const TEAM_SIZE_OPTIONS: { value: TeamSize; label: string }[] = [
+  { value: "just-me", label: "Just me" },
+  { value: "2-5", label: "2–5 people" },
+  { value: "6-20", label: "6–20 people" },
+  { value: "21-50", label: "21–50 people" },
+  { value: "50+", label: "50+ people" },
+]
+
+const SCOPE_OPTIONS: { value: GeographicScope; label: string }[] = [
+  { value: "local", label: "Local — one city or region" },
+  { value: "regional", label: "Regional — multi-state" },
+  { value: "national", label: "National — coast to coast" },
+  { value: "international", label: "International — cross-border" },
+]
+
+const TOOL_OPTIONS: { value: CurrentTool; label: string }[] = [
+  { value: "spreadsheet", label: "Spreadsheets" },
+  { value: "another-tms", label: "Another TMS" },
+  { value: "multiple-tools", label: "A patchwork of tools" },
+  { value: "manual", label: "Mostly manual (paper, calls, texts)" },
+]
+
+const FREIGHT_OPTIONS: { value: FreightType; label: string }[] = [
+  { value: "dry-van", label: "Dry van" },
+  { value: "reefer", label: "Reefer" },
+  { value: "flatbed", label: "Flatbed" },
+  { value: "ltl", label: "LTL" },
+  { value: "specialized", label: "Specialized" },
+  { value: "intermodal", label: "Intermodal" },
+]
+
+const TEAM_ROLES: { value: TeamRole; label: string; description: string }[] = [
+  { value: "admin", label: "Admin", description: "Full access except billing" },
+  { value: "operations_manager", label: "Ops Manager", description: "Loads, trips, fleet, drivers" },
+  { value: "dispatcher", label: "Dispatcher", description: "Create/assign loads & trips" },
+  { value: "accounting", label: "Accounting", description: "Invoices, payroll, reports" },
+  { value: "driver", label: "Driver", description: "View assigned loads, upload POD" },
+  { value: "safety", label: "Safety", description: "Driver records, compliance" },
+]
+
+const STEPS = [
+  { stop: "STOP 01", subtitle: "WHAT YOU RUN", title: ["Tell us about", "your company."] },
+  { stop: "STOP 02", subtitle: "WE'LL TAILOR THE REST", title: ["What do you", "operate?"] },
+  { stop: "STOP 03", subtitle: "ONLY WHAT MATTERS TO YOU", title: ["A little more about", "your operation."] },
+  { stop: "STOP 04", subtitle: "SO WE CAN HELP YOU SWITCH", title: ["How do you run", "freight today?"] },
+  { stop: "STOP 05", subtitle: "GET YOUR TEAM IN", title: ["Invite your", "teammates."] },
+  { stop: "STOP 06", subtitle: "WE'LL PRIORITISE THIS", title: ["What should Muvx fix", "first for you?"] },
 ]
 
 export default function OnboardingPage() {
@@ -58,27 +134,26 @@ export default function OnboardingPage() {
   const setActiveOrganization = useAuthStore((s) => s.setActiveOrganization)
 
   const {
-    companyName, slug, dotNumber, mcNumber, fleetSize, primaryUse,
-    currentStep, completedSteps,
-    setField, nextStep, prevStep, goToStep, reset, isStepValid,
+    draft, currentStep, completedSteps, highestReached,
+    setField, toggleFreightType, toggleGoal,
+    addTeamInvite, updateTeamInvite, removeTeamInvite,
+    nextStep, prevStep, goToStep, reset, isStepValid, asksFleetSize,
   } = useOnboardingStore()
 
   const [error, setError] = useState("")
   const [done, setDone] = useState(false)
   const [checkingExistingOrg, setCheckingExistingOrg] = useState(true)
 
-  // ─── Edge case 1: Check if user already completed onboarding ───
+  // ─── Check existing org ───
   useEffect(() => {
-    const checkExistingOrg = async () => {
-      console.log("[ONBOARDING] Checking for existing orgs...")
+    const check = async () => {
+      console.log("[ONBOARDING] Checking existing orgs...")
       try {
         const { data: orgs } = await authClient.organization.list()
-        const orgsList = orgs?.organizations ?? []
+        const list = orgs?.organizations ?? []
 
-        if (orgsList.length > 0) {
-          // User already has at least one org
-          // Check if any have completed onboarding
-          const completed = orgsList.find((o: any) => {
+        if (list.length > 0) {
+          const completed = list.find((o: any) => {
             try {
               const meta = o.metadata ? JSON.parse(o.metadata) : {}
               return meta.onboardingCompleted === true
@@ -88,16 +163,14 @@ export default function OnboardingPage() {
           })
 
           if (completed) {
-            console.log("[ONBOARDING] User has completed org, redirecting to dashboard")
-            // Set active and redirect
+            console.log("[ONBOARDING] Already completed, going to dashboard")
             await authClient.organization.setActive({ organizationId: completed.id })
             router.push("/dashboard")
             return
           }
 
-          // Has org but no onboarding completed - they were mid-onboarding
-          // Pre-fill from existing org
-          const existing = orgsList[0] as any
+          // Pre-fill from existing
+          const existing = list[0] as any
           console.log("[ONBOARDING] Pre-filling from existing org:", existing.slug)
           setField("companyName", existing.name)
           setField("slug", existing.slug)
@@ -105,96 +178,117 @@ export default function OnboardingPage() {
             const meta = existing.metadata ? JSON.parse(existing.metadata) : {}
             if (meta.dotNumber) setField("dotNumber", meta.dotNumber)
             if (meta.mcNumber) setField("mcNumber", meta.mcNumber)
+            if (meta.businessType) setField("businessType", meta.businessType)
             if (meta.fleetSize) setField("fleetSize", meta.fleetSize)
-            if (meta.primaryUse) setField("primaryUse", meta.primaryUse)
-          } catch {
-            // ignore parse errors
-          }
+            if (meta.teamSize) setField("teamSize", meta.teamSize)
+            if (meta.geographicScope) setField("geographicScope", meta.geographicScope)
+            if (meta.currentTool) setField("currentTool", meta.currentTool)
+            if (meta.freightTypes) setField("freightTypes", meta.freightTypes)
+            if (meta.primaryGoals) setField("primaryGoals", meta.primaryGoals)
+          } catch {}
         }
       } catch (err) {
-        console.error("[ONBOARDING] Failed to check existing orgs:", err)
+        console.error("[ONBOARDING] check existing failed:", err)
       } finally {
         setCheckingExistingOrg(false)
       }
     }
-    checkExistingOrg()
+    check()
   }, [router, setField])
 
-  // ─── Slug availability check ───
-  const slugIsReserved = RESERVED_SLUGS.includes(slug)
-  const slugIsValid = slug.length >= 2 && /^[a-z0-9-]+$/.test(slug) && !slugIsReserved
+  // ─── Slug check ───
+  const slugIsReserved = RESERVED_SLUGS.includes(draft.slug)
+  const slugIsValid = draft.slug.length >= 2 && /^[a-z0-9-]+$/.test(draft.slug) && !slugIsReserved
 
   const { data: slugCheck, isFetching: checkingSlug } = useQuery({
-    queryKey: ["check-slug", slug],
+    queryKey: ["check-slug", draft.slug],
     queryFn: async () => {
-      const result = await authClient.organization.checkSlug({ slug })
-      return result.data
+      const r = await authClient.organization.checkSlug({ slug: draft.slug })
+      return r.data
     },
     enabled: slugIsValid,
     staleTime: 5 * 1000,
     retry: false,
   })
-
   const slugAvailable = slugCheck ? !slugCheck.exists : null
 
-  // ─── Auto-generate slug from company name (only if user hasn't manually edited) ───
+  // ─── Auto-generate slug from company name ───
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   useEffect(() => {
-    if (!slugManuallyEdited && companyName && currentStep === 0) {
-      const generated = companyName
+    if (!slugManuallyEdited && draft.companyName && currentStep === 0) {
+      const gen = draft.companyName
         .toLowerCase()
         .replace(/[^a-z0-9\s]/g, "")
         .replace(/\s+/g, "-")
         .replace(/-+/g, "-")
         .replace(/^-|-$/g, "")
         .substring(0, 50)
-      setField("slug", generated)
+      setField("slug", gen)
     }
-  }, [companyName, slugManuallyEdited, currentStep, setField])
+  }, [draft.companyName, slugManuallyEdited, currentStep, setField])
 
-  // ─── DOT/MC validation ───
-  const dotIsValid = dotNumber === "" || /^\d{1,10}$/.test(dotNumber)
-  const mcIsValid = mcNumber === "" || /^\d{1,10}$/.test(mcNumber)
-
-  // ─── Final submit ───
-  const createOrgMutation = useMutation({
+  // ─── Final mutation: create org + invite team ───
+  const submitMutation = useMutation({
     mutationFn: async () => {
-      console.log("[ONBOARDING] Creating organization...")
+      console.log("[ONBOARDING] Finalizing setup...")
 
-      // Build metadata with all collected info
       const metadata = {
-        dotNumber: dotNumber.trim() || null,
-        mcNumber: mcNumber.trim() || null,
-        fleetSize: fleetSize || null,
-        primaryUse: primaryUse || null,
+        dotNumber: draft.dotNumber.trim() || null,
+        mcNumber: draft.mcNumber.trim() || null,
+        businessType: draft.businessType || null,
+        fleetSize: draft.fleetSize || null,
+        teamSize: draft.teamSize || null,
+        geographicScope: draft.geographicScope || null,
+        currentTool: draft.currentTool || null,
+        freightTypes: draft.freightTypes,
+        primaryGoals: draft.primaryGoals,
         onboardingCompleted: true,
         onboardingCompletedAt: new Date().toISOString(),
       }
 
       const result = await authClient.organization.create({
-        name: companyName.trim(),
-        slug: slug.trim(),
+        name: draft.companyName.trim(),
+        slug: draft.slug.trim(),
         metadata: JSON.stringify(metadata),
       })
 
       if (result.error) {
-        // If slug collision, surface that
-        if (result.error.code === "ORGANIZATION_ALREADY_EXISTS" || result.error.message?.includes("slug")) {
-          throw new Error("This URL is already taken. Please choose another.")
+        if (result.error.code === "ORGANIZATION_ALREADY_EXISTS") {
+          throw new Error("This URL is already taken. Please go back and choose another.")
         }
-        // If limit reached, explain
         if (result.error.code === "YOU_HAVE_REACHED_THE_MAXIMUM_NUMBER_OF_ORGANIZATIONS") {
-          throw new Error("You've reached the maximum number of organizations. Please delete an existing one first.")
+          throw new Error("Maximum organizations reached. Please contact support.")
         }
         throw new Error(result.error.message || "Failed to create organization")
       }
+
+      // Send team invitations
+      const validInvites = draft.teamInvites.filter(
+        (inv) => inv.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inv.email)
+      )
+
+      if (validInvites.length > 0 && result.data?.organization?.id) {
+        console.log(`[ONBOARDING] Sending ${validInvites.length} invites...`)
+        for (const invite of validInvites) {
+          try {
+            await authClient.organization.inviteMember({
+              email: invite.email,
+              role: invite.role,
+              organizationId: result.data.organization.id,
+            })
+            console.log(`[ONBOARDING] ✅ Invited ${invite.email} as ${invite.role}`)
+          } catch (err) {
+            console.error(`[ONBOARDING] Failed to invite ${invite.email}:`, err)
+            // Don't fail the whole flow
+          }
+        }
+      }
+
       return result.data
     },
     onSuccess: async (data) => {
       if (data?.organization?.id) {
-        await authClient.organization.setActive({
-          organizationId: data.organization.id,
-        })
+        await authClient.organization.setActive({ organizationId: data.organization.id })
         setActiveOrganization({
           id: data.organization.id,
           name: data.organization.name,
@@ -202,15 +296,15 @@ export default function OnboardingPage() {
           logo: data.organization.logo,
           metadata: data.organization.metadata,
         })
-        console.log("[ONBOARDING] ✅ Org created and set active")
+        console.log("[ONBOARDING] ✅ Setup complete")
         setDone(true)
         toast.success("Welcome to Muvx!")
         reset()
-        setTimeout(() => router.push("/dashboard"), 1200)
+        setTimeout(() => router.push("/dashboard"), 1500)
       }
     },
     onError: (err: Error) => {
-      console.error("[ONBOARDING] Create org failed:", err)
+      console.error("[ONBOARDING] Submit failed:", err)
       setError(err.message)
     },
   })
@@ -219,12 +313,12 @@ export default function OnboardingPage() {
   const handleNext = () => {
     setError("")
     if (currentStep === 0) {
-      if (!companyName.trim() || companyName.trim().length < 2) {
+      if (!draft.companyName.trim() || draft.companyName.trim().length < 2) {
         setError("Please enter your company name")
         return
       }
-      if (!slug || !slugIsValid) {
-        setError("Please choose a valid company URL (lowercase, numbers, hyphens)")
+      if (!draft.slug || !slugIsValid) {
+        setError("Please choose a valid company URL")
         return
       }
       if (slugIsReserved) {
@@ -236,14 +330,19 @@ export default function OnboardingPage() {
         return
       }
     }
-    if (currentStep === 1) {
-      if (!dotIsValid) {
-        setError("DOT number must be digits only")
+    if (currentStep === 2) {
+      if (asksFleetSize() && !draft.fleetSize) {
+        setError("Please select your fleet size")
         return
       }
-      if (!mcIsValid) {
-        setError("MC number must be digits only")
-        return
+    }
+    if (currentStep === 4) {
+      // Validate team invite emails
+      for (const inv of draft.teamInvites) {
+        if (inv.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inv.email)) {
+          setError(`Invalid email: ${inv.email}`)
+          return
+        }
       }
     }
     nextStep()
@@ -251,31 +350,39 @@ export default function OnboardingPage() {
 
   const handleSubmit = () => {
     setError("")
-    createOrgMutation.mutate()
+    if (draft.primaryGoals.length === 0) {
+      setError("Please pick at least one goal")
+      return
+    }
+    submitMutation.mutate()
   }
 
   // ─── Loading state ───
   if (checkingExistingOrg) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-white">
+      <div className="flex min-h-screen items-center justify-center" style={{ background: "#f7f3ec" }}>
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400 mx-auto" />
-          <p className="mt-4 text-sm text-slate-500">Loading your workspace...</p>
+          <Loader2 className="h-8 w-8 animate-spin mx-auto" style={{ color: "#8a8b8f" }} />
+          <p className="mt-4 text-sm" style={{ color: "#8a8b8f" }}>Loading your workspace...</p>
         </div>
       </div>
     )
   }
 
-  // ─── Done state ───
   if (done) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-white px-4">
+      <div className="flex min-h-screen items-center justify-center px-4" style={{ background: "#f7f3ec" }}>
         <div className="w-full max-w-md text-center">
-          <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-6 border border-emerald-100">
-            <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+          <div
+            className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-6"
+            style={{ background: "rgba(94,140,106,0.1)" }}
+          >
+            <CheckCircle2 className="h-8 w-8" style={{ color: "#5e8c6a" }} />
           </div>
-          <h1 className="text-2xl font-semibold text-slate-900">You&apos;re all set</h1>
-          <p className="text-slate-500 mt-2 leading-relaxed">
+          <h1 className="font-serif text-4xl tracking-tight" style={{ color: "#16181d" }}>
+            You&apos;re all set
+          </h1>
+          <p className="mt-3 font-geist" style={{ color: "#4a4e57" }}>
             Your workspace is ready. Taking you to your dashboard...
           </p>
         </div>
@@ -283,331 +390,310 @@ export default function OnboardingPage() {
     )
   }
 
-  const totalSteps = 3
-  const progressPercent = ((currentStep + 1) / totalSteps) * 100
+  const totalSteps = STEPS.length
+  const stepInfo = STEPS[currentStep]
+  const showFleetSize = currentStep === 2 && asksFleetSize()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 flex flex-col">
-      {/* Top bar */}
-      <header className="border-b border-slate-200/60 bg-white/80 backdrop-blur-sm">
-        <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-slate-900 flex items-center justify-center">
-              <Truck className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-sm font-semibold text-slate-900">Muvx</span>
-          </div>
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
-          >
-            Skip for now
-          </button>
-        </div>
-      </header>
+    <div className="relative min-h-screen w-full overflow-hidden" style={{ background: "#f7f3ec" }}>
+      {/* Background contour lines */}
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        <svg viewBox="0 0 1600 900" className="absolute inset-0 h-full w-full opacity-40" preserveAspectRatio="none">
+          <path d="M1010 105C1120 180 1200 105 1310 160C1410 210 1510 135 1600 185" fill="none" stroke="#ead4c5" strokeWidth="1" />
+          <path d="M0 710C180 665 320 742 490 700C640 663 760 730 900 684" fill="none" stroke="#ead4c5" strokeWidth="1" />
+          <path d="M900 155C1030 235 1150 165 1250 220C1360 278 1490 220 1600 265" fill="none" stroke="#ead4c5" strokeWidth="1" />
+        </svg>
+      </div>
 
-      {/* Main content */}
-      <main className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-xl">
-          {/* Progress */}
-          <div className="mb-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                Step {currentStep + 1} of {totalSteps}
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[920px] flex-col px-6 py-12 md:px-16">
+        {/* Top bar */}
+        <div className="flex items-center justify-between">
+          <a href="/" className="flex items-center">
+            <span className="font-serif text-[30px] font-medium leading-none tracking-[-0.015em]" style={{ color: "#16181d" }}>
+              Muvx<span style={{ color: "#e8602b" }}>TMS</span>
+            </span>
+          </a>
+          <span className="font-geist-mono text-[11px] uppercase tracking-[0.04em]" style={{ color: "#8a8b8f" }}>
+            Setup · {currentStep + 1} of {totalSteps}
+          </span>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mt-8 flex gap-1.5">
+          {STEPS.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goToStep(i)}
+              disabled={i > highestReached}
+              className={cn(
+                "h-[3px] flex-1 rounded-full transition-colors",
+                i < currentStep ? "cursor-pointer" : "",
+                i === currentStep
+                  ? "bg-[#d9622b]"
+                  : i < currentStep
+                  ? "bg-[#d9622b]/60 hover:bg-[#d9622b]"
+                  : "bg-[#e4ddd3]"
+              )}
+              aria-label={`Go to ${STEPS[i].stop}`}
+            />
+          ))}
+        </div>
+
+        {/* Main content */}
+        <div className="mt-10 flex-1">
+          {/* Eyebrow + headline */}
+          <div className="mb-8">
+            <div className={eyebrowStop}>
+              <span className="size-[7px] shrink-0 rounded-full bg-[#d9622b]" />
+              <span className="font-geist-mono text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#16181d" }}>
+                {stepInfo.stop}
               </span>
-              <span className="text-xs text-slate-500">
-                {Math.round(progressPercent)}% complete
+              <span className="font-geist-mono text-[11px] tracking-[0.04em]" style={{ color: "#8a8b8f" }}>
+                · {stepInfo.subtitle}
               </span>
             </div>
-            <Progress value={progressPercent} className="h-1" />
+            <h1 className={cn(displayHeading, "mt-5")}>
+              <span className="block">{stepInfo.title[0]}</span>
+              <span className={cn("block", italicAccent)}>
+                {stepInfo.title[1]}
+              </span>
+            </h1>
           </div>
+
+          {error && (
+            <div className={cn(errorBanner, "mb-6")} role="alert">
+              {error}
+            </div>
+          )}
 
           {/* Step content */}
-          <Card className="border-slate-200/80 shadow-sm shadow-slate-200/50">
-            <div className="p-8 sm:p-10">
-              {error && (
-                <div className="mb-6 p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-md flex items-start gap-2">
-                  <X className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
+          <div className="space-y-6">
+            {currentStep === 0 && (
+              <StepCompany
+                companyName={draft.companyName}
+                slug={draft.slug}
+                dotNumber={draft.dotNumber}
+                mcNumber={draft.mcNumber}
+                onCompanyNameChange={(v) => setField("companyName", v)}
+                onSlugChange={(v) => {
+                  setSlugManuallyEdited(true)
+                  setField("slug", v.toLowerCase().replace(/[^a-z0-9-]/g, ""))
+                }}
+                onDotChange={(v) => setField("dotNumber", v.replace(/\D/g, ""))}
+                onMcChange={(v) => setField("mcNumber", v.replace(/\D/g, ""))}
+                slugIsValid={slugIsValid}
+                slugIsReserved={slugIsReserved}
+                slugAvailable={slugAvailable}
+                checkingSlug={checkingSlug}
+              />
+            )}
 
-              {currentStep === 0 && (
-                <StepCompany
-                  companyName={companyName}
-                  slug={slug}
-                  onCompanyNameChange={(v) => setField("companyName", v)}
-                  onSlugChange={(v) => {
-                    setSlugManuallyEdited(true)
-                    setField("slug", v.toLowerCase().replace(/[^a-z0-9-]/g, ""))
-                  }}
-                  slugIsValid={slugIsValid}
-                  slugIsReserved={slugIsReserved}
-                  slugAvailable={slugAvailable}
-                  checkingSlug={checkingSlug}
-                />
-              )}
+            {currentStep === 1 && (
+              <StepBusiness
+                businessType={draft.businessType}
+                onChange={(v) => setField("businessType", v)}
+              />
+            )}
 
-              {currentStep === 1 && (
-                <StepIndustry
-                  dotNumber={dotNumber}
-                  mcNumber={mcNumber}
-                  onDotChange={(v) => setField("dotNumber", v.replace(/\D/g, ""))}
-                  onMcChange={(v) => setField("mcNumber", v.replace(/\D/g, ""))}
-                  dotIsValid={dotIsValid}
-                  mcIsValid={mcIsValid}
-                />
-              )}
+            {currentStep === 2 && (
+              <StepOperation
+                fleetSize={draft.fleetSize}
+                teamSize={draft.teamSize}
+                geographicScope={draft.geographicScope}
+                showFleetSize={showFleetSize}
+                onFleetSizeChange={(v) => setField("fleetSize", v)}
+                onTeamSizeChange={(v) => setField("teamSize", v)}
+                onScopeChange={(v) => setField("geographicScope", v)}
+              />
+            )}
 
-              {currentStep === 2 && (
-                <StepPersonalize
-                  fleetSize={fleetSize}
-                  primaryUse={primaryUse}
-                  onFleetSizeChange={(v) => setField("fleetSize", v)}
-                  onPrimaryUseChange={(v) => setField("primaryUse", v)}
-                />
-              )}
-            </div>
+            {currentStep === 3 && (
+              <StepCurrent
+                currentTool={draft.currentTool}
+                freightTypes={draft.freightTypes}
+                onToolChange={(v) => setField("currentTool", v)}
+                onToggleFreight={(t) => toggleFreightType(t)}
+              />
+            )}
 
-            {/* Footer nav */}
-            <div className="border-t border-slate-100 px-8 sm:px-10 py-5 bg-slate-50/50 flex items-center justify-between">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={prevStep}
-                disabled={currentStep === 0 || createOrgMutation.isPending}
-                className="text-slate-600"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
+            {currentStep === 4 && (
+              <StepTeam
+                invites={draft.teamInvites}
+                onAdd={addTeamInvite}
+                onUpdate={updateTeamInvite}
+                onRemove={removeTeamInvite}
+              />
+            )}
 
-              {currentStep < totalSteps - 1 ? (
-                <Button
-                  type="button"
-                  onClick={handleNext}
-                  disabled={!isStepValid(currentStep) || checkingSlug}
-                  className="bg-slate-900 hover:bg-slate-800"
-                >
-                  Continue
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={createOrgMutation.isPending}
-                  className="bg-slate-900 hover:bg-slate-800"
-                >
-                  {createOrgMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Creating workspace...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Create workspace
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-          </Card>
-
-          {/* Trust signals */}
-          <div className="mt-8 flex items-center justify-center gap-6 text-xs text-slate-500">
-            <div className="flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              <span>SOC 2 ready</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span>Encrypted at rest</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span>Multi-tenant isolated</span>
-            </div>
+            {currentStep === 5 && (
+              <StepGoals
+                selected={draft.primaryGoals}
+                onToggle={(g) => toggleGoal(g)}
+              />
+            )}
           </div>
         </div>
-      </main>
+
+        {/* Footer nav */}
+        <div className="mt-12 flex items-center justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={prevStep}
+            disabled={currentStep === 0 || submitMutation.isPending}
+            className="font-geist text-sm text-[#4a4e57] hover:text-[#16181d] hover:bg-transparent"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+
+          {currentStep < totalSteps - 1 ? (
+            <Button
+              type="button"
+              onClick={handleNext}
+              disabled={!isStepValid(currentStep) || checkingSlug}
+              className={cn(btnPrimary, "max-w-[200px]")}
+            >
+              Continue <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!isStepValid(currentStep) || submitMutation.isPending}
+              className={cn(btnPrimary, "max-w-[260px]")}
+            >
+              {submitMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Setting up...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Open my workspace
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+
+        {/* Trust signals */}
+        <div className="mt-10 flex items-center justify-center gap-4 font-geist-mono text-[10px] tracking-[0.04em]" style={{ color: "#8a8b8f" }}>
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>SOC 2 TYPE II</span>
+          </div>
+          <span>·</span>
+          <span>ENCRYPTED AT REST</span>
+          <span>·</span>
+          <span>MULTI-TENANT ISOLATED</span>
+        </div>
+      </div>
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 1: Company basics
+// STEP 1: Company
 // ─────────────────────────────────────────────────────────────────────────────
 function StepCompany({
-  companyName, slug,
-  onCompanyNameChange, onSlugChange,
+  companyName, slug, dotNumber, mcNumber,
+  onCompanyNameChange, onSlugChange, onDotChange, onMcChange,
   slugIsValid, slugIsReserved, slugAvailable, checkingSlug,
 }: {
   companyName: string
   slug: string
+  dotNumber: string
+  mcNumber: string
   onCompanyNameChange: (v: string) => void
   onSlugChange: (v: string) => void
+  onDotChange: (v: string) => void
+  onMcChange: (v: string) => void
   slugIsValid: boolean
   slugIsReserved: boolean
   slugAvailable: boolean | null
   checkingSlug: boolean
 }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-slate-100 mb-4">
-          <Building2 className="h-5 w-5 text-slate-700" />
-        </div>
-        <h2 className="text-xl font-semibold text-slate-900 tracking-tight">
-          Name your company
-        </h2>
-        <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
-          This is the workspace your team will use. You can rename it later.
-        </p>
+        <label htmlFor="companyName" className={fieldLabel}>Company name</label>
+        <input
+          id="companyName"
+          autoFocus
+          value={companyName}
+          onChange={(e) => onCompanyNameChange(e.target.value)}
+          placeholder="ABC Logistics"
+          className={inputBase}
+        />
       </div>
 
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <Label htmlFor="companyName" className="text-slate-700">
-            Company name
-          </Label>
-          <Input
-            id="companyName"
+      <div>
+        <label htmlFor="slug" className={fieldLabel}>Company URL</label>
+        <div className="flex items-center rounded-lg border border-[#d1ccc5] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#d9622b]/20 focus-within:border-[#d9622b]">
+          <span className="px-3 text-sm text-[#8a8b8f] font-geist-mono tracking-[0.04em] bg-[#f5f2ec] border-r border-[#e4ddd3] h-11 flex items-center">
+            muvx.com/
+          </span>
+          <input
+            id="slug"
             type="text"
-            placeholder="Acme Trucking Co."
-            value={companyName}
-            onChange={(e) => onCompanyNameChange(e.target.value)}
-            className="h-11"
-            autoFocus
+            placeholder="abc-logistics"
+            value={slug}
+            onChange={(e) => onSlugChange(e.target.value)}
+            className="flex-1 h-11 px-3 text-[15px] bg-transparent outline-none placeholder-[#a8a29a]"
           />
         </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="slug" className="text-slate-700">
-            Company URL
-          </Label>
-          <div className="flex items-center rounded-md border border-slate-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-300">
-            <span className="px-3 text-sm text-slate-400 bg-slate-50 border-r border-slate-200 h-11 flex items-center">
-              muvx.com/
-            </span>
-            <input
-              id="slug"
-              type="text"
-              placeholder="acme-trucking"
-              value={slug}
-              onChange={(e) => onSlugChange(e.target.value)}
-              className="flex-1 h-11 px-3 text-sm bg-transparent outline-none placeholder:text-slate-400"
-            />
-          </div>
-          <div className="min-h-[20px] text-xs">
-            {slug && slugIsReserved && (
-              <p className="text-amber-600">This URL is reserved. Please choose another.</p>
-            )}
-            {slug && !slugIsValid && !slugIsReserved && (
-              <p className="text-amber-600">Use lowercase letters, numbers, and hyphens only.</p>
-            )}
-            {slug && slugIsValid && checkingSlug && (
-              <p className="text-slate-500">Checking availability...</p>
-            )}
-            {slug && slugIsValid && !checkingSlug && slugAvailable === true && (
-              <p className="text-emerald-600">✓ This URL is available</p>
-            )}
-            {slug && slugIsValid && !checkingSlug && slugAvailable === false && (
-              <p className="text-red-600">✗ This URL is already taken</p>
-            )}
-            {!slug && (
-              <p className="text-slate-500">Your team will use this URL to sign in.</p>
-            )}
-          </div>
+        <div className="min-h-[24px] mt-1.5 text-[12.5px] font-geist">
+          {slug && slugIsReserved && (
+            <p className="text-[#d9622b]">This URL is reserved. Please choose another.</p>
+          )}
+          {slug && !slugIsValid && !slugIsReserved && (
+            <p className="text-[#d9622b]">Use lowercase letters, numbers, and hyphens only.</p>
+          )}
+          {slug && slugIsValid && checkingSlug && (
+            <p className="text-[#8a8b8f]">Checking availability...</p>
+          )}
+          {slug && slugIsValid && !checkingSlug && slugAvailable === true && (
+            <p style={{ color: "#5e8c6a" }}>✓ This URL is available</p>
+          )}
+          {slug && slugIsValid && !checkingSlug && slugAvailable === false && (
+            <p className="text-[#d9622b]">✗ This URL is already taken</p>
+          )}
+          {!slug && (
+            <p className="text-[#8a8b8f]">Your team will use this URL to sign in.</p>
+          )}
         </div>
       </div>
-    </div>
-  )
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STEP 2: Industry details
-// ─────────────────────────────────────────────────────────────────────────────
-function StepIndustry({
-  dotNumber, mcNumber, onDotChange, onMcChange, dotIsValid, mcIsValid,
-}: {
-  dotNumber: string
-  mcNumber: string
-  onDotChange: (v: string) => void
-  onMcChange: (v: string) => void
-  dotIsValid: boolean
-  mcIsValid: boolean
-}) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-slate-100 mb-4">
-          <Hash className="h-5 w-5 text-slate-700" />
-        </div>
-        <h2 className="text-xl font-semibold text-slate-900 tracking-tight">
-          Regulatory details
-        </h2>
-        <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
-          Optional, but speeds up your DOT/MC compliance workflows.
-        </p>
-      </div>
-
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <Label htmlFor="dotNumber" className="text-slate-700 flex items-center gap-2">
-            DOT number
-            <span className="text-xs font-normal text-slate-400">Optional</span>
-          </Label>
-          <Input
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="dotNumber" className={fieldLabel}>
+            DOT number <span className="text-[#a8a29a] normal-case tracking-normal">— Optional</span>
+          </label>
+          <input
             id="dotNumber"
-            type="text"
             inputMode="numeric"
-            placeholder="1234567"
             value={dotNumber}
             onChange={(e) => onDotChange(e.target.value)}
+            placeholder="1234567"
             maxLength={10}
-            className={cn("h-11 font-mono", !dotIsValid && "border-red-300")}
-            autoFocus
+            className={cn(inputBase, "font-mono")}
           />
-          {!dotIsValid && (
-            <p className="text-xs text-red-600">DOT number must be digits only (up to 10 digits).</p>
-          )}
-          {dotIsValid && (
-            <p className="text-xs text-slate-500">
-              Issued by the Federal Motor Carrier Safety Administration (FMCSA).
-            </p>
-          )}
         </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="mcNumber" className="text-slate-700 flex items-center gap-2">
-            MC number
-            <span className="text-xs font-normal text-slate-400">Optional</span>
-          </Label>
-          <Input
+        <div>
+          <label htmlFor="mcNumber" className={fieldLabel}>
+            MC number <span className="text-[#a8a29a] normal-case tracking-normal">— Optional</span>
+          </label>
+          <input
             id="mcNumber"
-            type="text"
             inputMode="numeric"
-            placeholder="654321"
             value={mcNumber}
             onChange={(e) => onMcChange(e.target.value)}
+            placeholder="654321"
             maxLength={10}
-            className={cn("h-11 font-mono", !mcIsValid && "border-red-300")}
+            className={cn(inputBase, "font-mono")}
           />
-          {!mcIsValid && (
-            <p className="text-xs text-red-600">MC number must be digits only.</p>
-          )}
-          {mcIsValid && (
-            <p className="text-xs text-slate-500">
-              Required for interstate carriers transporting regulated commodities.
-            </p>
-          )}
-        </div>
-
-        <div className="mt-4 p-3 bg-slate-50 border border-slate-100 rounded-md flex gap-2.5">
-          <ShieldCheck className="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-slate-600 leading-relaxed">
-            We never share your regulatory data. Numbers are stored encrypted and used only to pre-fill compliance forms.
-          </p>
         </div>
       </div>
     </div>
@@ -615,88 +701,317 @@ function StepIndustry({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 3: Personalization
+// STEP 2: Business type
 // ─────────────────────────────────────────────────────────────────────────────
-function StepPersonalize({
-  fleetSize, primaryUse, onFleetSizeChange, onPrimaryUseChange,
+function StepBusiness({
+  businessType, onChange,
+}: {
+  businessType: BusinessType | ""
+  onChange: (v: BusinessType) => void
+}) {
+  return (
+    <div className="space-y-3">
+      {BUSINESS_OPTIONS.map((b) => {
+        const active = businessType === b.value
+        return (
+          <button
+            key={b.value}
+            type="button"
+            onClick={() => onChange(b.value)}
+            className={cn(
+              "flex items-start gap-3 rounded-xl border p-4 text-left transition-all w-full",
+              active
+                ? "border-[#d9622b] bg-[#fff0e6]"
+                : "border-[#d1ccc5] bg-white hover:border-[#c4bdb3] hover:bg-[#fffdf9]"
+            )}
+          >
+            <span
+              className={cn(
+                "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                active
+                  ? "border-[#d9622b] bg-[#d9622b]"
+                  : "border-[#d1ccc5] bg-white"
+              )}
+            >
+              {active && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-geist text-[16px] font-semibold" style={{ color: "#16181d" }}>
+                {b.label}
+              </span>
+              <span className="mt-0.5 block font-geist text-[14px]" style={{ color: "#73757a" }}>
+                {b.blurb}
+              </span>
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 3: Operation scale
+// ─────────────────────────────────────────────────────────────────────────────
+function StepOperation({
+  fleetSize, teamSize, geographicScope, showFleetSize,
+  onFleetSizeChange, onTeamSizeChange, onScopeChange,
 }: {
   fleetSize: FleetSize | ""
-  primaryUse: PrimaryUse | ""
+  teamSize: TeamSize | ""
+  geographicScope: GeographicScope | ""
+  showFleetSize: boolean
   onFleetSizeChange: (v: FleetSize) => void
-  onPrimaryUseChange: (v: PrimaryUse) => void
+  onTeamSizeChange: (v: TeamSize) => void
+  onScopeChange: (v: GeographicScope) => void
+}) {
+  return (
+    <div className="space-y-5">
+      {showFleetSize && (
+        <div>
+          <label htmlFor="fleet-size" className={fieldLabel}>Fleet size</label>
+          <Select value={fleetSize} onValueChange={(v) => onFleetSizeChange(v as FleetSize)}>
+            <SelectTrigger className="h-11 border-[#d1ccc5] focus:border-[#d9622b] focus:ring-2 focus:ring-[#d9622b]/20">
+              <SelectValue placeholder="Select…" />
+            </SelectTrigger>
+            <SelectContent>
+              {FLEET_SIZE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      <div>
+        <label htmlFor="team-size" className={fieldLabel}>Team size</label>
+        <Select value={teamSize} onValueChange={(v) => onTeamSizeChange(v as TeamSize)}>
+          <SelectTrigger className="h-11 border-[#d1ccc5] focus:border-[#d9622b] focus:ring-2 focus:ring-[#d9622b]/20">
+            <SelectValue placeholder="Select…" />
+          </SelectTrigger>
+          <SelectContent>
+            {TEAM_SIZE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <label htmlFor="scope" className={fieldLabel}>Geographic scope</label>
+        <Select value={geographicScope} onValueChange={(v) => onScopeChange(v as GeographicScope)}>
+          <SelectTrigger className="h-11 border-[#d1ccc5] focus:border-[#d9622b] focus:ring-2 focus:ring-[#d9622b]/20">
+            <SelectValue placeholder="Select…" />
+          </SelectTrigger>
+          <SelectContent>
+            {SCOPE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 4: Current setup
+// ─────────────────────────────────────────────────────────────────────────────
+function StepCurrent({
+  currentTool, freightTypes,
+  onToolChange, onToggleFreight,
+}: {
+  currentTool: CurrentTool | ""
+  freightTypes: FreightType[]
+  onToolChange: (v: CurrentTool) => void
+  onToggleFreight: (t: FreightType) => void
 }) {
   return (
     <div className="space-y-6">
       <div>
-        <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-slate-100 mb-4">
-          <Users className="h-5 w-5 text-slate-700" />
-        </div>
-        <h2 className="text-xl font-semibold text-slate-900 tracking-tight">
-          Tell us about your operation
-        </h2>
-        <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
-          We&apos;ll tailor Muvx to your fleet size and freight type.
-        </p>
+        <label htmlFor="currentTool" className={fieldLabel}>
+          How do you manage freight today?
+        </label>
+        <Select value={currentTool} onValueChange={(v) => onToolChange(v as CurrentTool)}>
+          <SelectTrigger className="h-11 border-[#d1ccc5] focus:border-[#d9622b] focus:ring-2 focus:ring-[#d9622b]/20">
+            <SelectValue placeholder="Select…" />
+          </SelectTrigger>
+          <SelectContent>
+            {TOOL_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="space-y-6">
-        <div className="space-y-3">
-          <Label className="text-slate-700 flex items-center gap-2">
-            Fleet size
-            <span className="text-xs font-normal text-slate-400">Optional</span>
-          </Label>
-          <RadioGroup
-            value={fleetSize}
-            onValueChange={(v) => onFleetSizeChange(v as FleetSize)}
-            className="grid grid-cols-2 sm:grid-cols-3 gap-2"
-          >
-            {FLEET_SIZE_OPTIONS.map((opt) => (
-              <label
-                key={opt.value}
-                htmlFor={`fleet-${opt.value}`}
+      <div>
+        <label className={fieldLabel}>
+          What kinds of freight do you move?
+          <span className="text-[#a8a29a] normal-case tracking-normal ml-2">Pick all that apply</span>
+        </label>
+        <div className="flex flex-wrap gap-2 mt-1.5">
+          {FREIGHT_OPTIONS.map((f) => {
+            const active = freightTypes.includes(f.value)
+            return (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => onToggleFreight(f.value)}
                 className={cn(
-                  "flex flex-col p-3 border rounded-md cursor-pointer transition-all text-left",
-                  fleetSize === opt.value
-                    ? "border-slate-900 bg-slate-50 ring-1 ring-slate-900"
-                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+                  "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-geist font-medium transition-colors border",
+                  active
+                    ? "bg-[#16181d] text-[#f5f2ec] border-[#16181d]"
+                    : "bg-white text-[#16181d] border-[#d1ccc5] hover:border-[#16181d]"
                 )}
               >
-                <RadioGroupItem value={opt.value} id={`fleet-${opt.value}`} className="sr-only" />
-                <span className="text-sm font-medium text-slate-900">{opt.label}</span>
-                <span className="text-xs text-slate-500 mt-0.5">{opt.description}</span>
-              </label>
-            ))}
-          </RadioGroup>
+                {active && <Check className="h-3.5 w-3.5" strokeWidth={2.5} />}
+                {f.label}
+              </button>
+            )
+          })}
         </div>
+      </div>
+    </div>
+  )
+}
 
-        <div className="space-y-3">
-          <Label className="text-slate-700 flex items-center gap-2">
-            Primary operation
-            <span className="text-xs font-normal text-slate-400">Optional</span>
-          </Label>
-          <RadioGroup
-            value={primaryUse}
-            onValueChange={(v) => onPrimaryUseChange(v as PrimaryUse)}
-            className="grid grid-cols-1 sm:grid-cols-2 gap-2"
-          >
-            {PRIMARY_USE_OPTIONS.map((opt) => (
-              <label
-                key={opt.value}
-                htmlFor={`use-${opt.value}`}
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 5: Team invites
+// ─────────────────────────────────────────────────────────────────────────────
+function StepTeam({
+  invites, onAdd, onUpdate, onRemove,
+}: {
+  invites: TeamInvite[]
+  onAdd: () => void
+  onUpdate: (index: number, patch: Partial<TeamInvite>) => void
+  onRemove: (index: number) => void
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm font-geist" style={{ color: "#4a4e57" }}>
+        Get your team in from day one. They&apos;ll receive an email with a sign-up link.
+        You can always invite more later from Settings.
+      </p>
+
+      <div className="space-y-2.5">
+        {invites.map((inv, i) => {
+          const emailValid = !inv.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inv.email)
+          return (
+            <div
+              key={i}
+              className="flex gap-2 items-start rounded-xl border border-[#d1ccc5] bg-white p-3"
+            >
+              <div className="flex-1 space-y-2">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8a8b8f]" />
+                  <input
+                    type="email"
+                    inputMode="email"
+                    value={inv.email}
+                    onChange={(e) => onUpdate(i, { email: e.target.value })}
+                    placeholder="teammate@company.com"
+                    className={cn(
+                      "h-10 w-full rounded-lg border bg-white pl-9 pr-3 text-sm outline-none",
+                      emailValid
+                        ? "border-[#d1ccc5] focus:border-[#d9622b] focus:ring-2 focus:ring-[#d9622b]/20"
+                        : "border-[#d9622b] focus:border-[#d9622b] focus:ring-2 focus:ring-[#d9622b]/20"
+                    )}
+                  />
+                </div>
+                <Select
+                  value={inv.role}
+                  onValueChange={(v) => onUpdate(i, { role: v as TeamRole })}
+                >
+                  <SelectTrigger className="h-10 border-[#d1ccc5] focus:border-[#d9622b] focus:ring-2 focus:ring-[#d9622b]/20 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TEAM_ROLES.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{r.label}</span>
+                          <span className="text-xs text-[#8a8b8f]">{r.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(i)}
+                className="flex h-10 w-10 items-center justify-center rounded-lg text-[#8a8b8f] hover:bg-[#fef2f2] hover:text-[#d9622b] transition-colors flex-shrink-0"
+                aria-label="Remove invite"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onAdd}
+        className="w-full h-11 rounded-full border-dashed border-[#d1ccc5] hover:border-[#16181d] hover:bg-[#fffdf9] font-geist"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Invite another teammate
+      </Button>
+
+      {invites.length === 0 && (
+        <p className="text-center text-xs font-geist" style={{ color: "#8a8b8f" }}>
+          No invites yet. You can always add team members from Settings.
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 6: Goals
+// ─────────────────────────────────────────────────────────────────────────────
+function StepGoals({
+  selected, onToggle,
+}: {
+  selected: readonly string[]
+  onToggle: (g: string) => void
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-geist" style={{ color: "#4a4e57" }}>
+        Pick as many as you like. We&apos;ll lead with these on your dashboard.
+      </p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {GOALS.map((g) => {
+          const active = selected.includes(g)
+          return (
+            <button
+              key={g}
+              type="button"
+              onClick={() => onToggle(g)}
+              className={cn(
+                "flex items-center gap-2.5 rounded-xl border p-3.5 text-left font-geist text-[14px] transition-colors",
+                active
+                  ? "border-[#d9622b] bg-[#fff0e6] text-[#16181d] font-medium"
+                  : "border-[#d1ccc5] bg-white text-[#16181d] hover:border-[#c4bdb3]"
+              )}
+            >
+              <span
                 className={cn(
-                  "flex flex-col p-3 border rounded-md cursor-pointer transition-all text-left",
-                  primaryUse === opt.value
-                    ? "border-slate-900 bg-slate-50 ring-1 ring-slate-900"
-                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+                  "flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors",
+                  active
+                    ? "border-[#d9622b] bg-[#d9622b]"
+                    : "border-[#c8c2b8] bg-white"
                 )}
               >
-                <RadioGroupItem value={opt.value} id={`use-${opt.value}`} className="sr-only" />
-                <span className="text-sm font-medium text-slate-900">{opt.label}</span>
-                <span className="text-xs text-slate-500 mt-0.5">{opt.description}</span>
-              </label>
-            ))}
-          </RadioGroup>
-        </div>
+                {active && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+              </span>
+              {g}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
