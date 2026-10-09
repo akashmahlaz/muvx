@@ -7,5 +7,11 @@
         "mcp"
       ]
     },
+    "better-auth": {
+      "command": "bunx",
+      "args": [
+        "better-auth-mcp"
+      ]
+    }
   }
 }
