@@ -55,7 +55,8 @@ export function QueryProvider({ children }: { children: ReactNode }) {
                 name: org.name,
                 slug: org.slug,
                 logo: org.logo,
-                metadata: org.metadata,
+                // metadata from Better Auth is already a record/object
+                metadata: (org.metadata as Record<string, any>) ?? null,
               })
             }
           }

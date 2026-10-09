@@ -154,12 +154,9 @@ export default function OnboardingPage() {
 
         if (list.length > 0) {
           const completed = list.find((o: any) => {
-            try {
-              const meta = o.metadata ? JSON.parse(o.metadata) : {}
-              return meta.onboardingCompleted === true
-            } catch {
-              return false
-            }
+            // metadata is already an object (record<string, any>) from Better Auth
+            const meta = (o.metadata as any) ?? {}
+            return meta?.onboardingCompleted === true
           })
 
           if (completed) {
@@ -174,18 +171,17 @@ export default function OnboardingPage() {
           console.log("[ONBOARDING] Pre-filling from existing org:", existing.slug)
           setField("companyName", existing.name)
           setField("slug", existing.slug)
-          try {
-            const meta = existing.metadata ? JSON.parse(existing.metadata) : {}
-            if (meta.dotNumber) setField("dotNumber", meta.dotNumber)
-            if (meta.mcNumber) setField("mcNumber", meta.mcNumber)
-            if (meta.businessType) setField("businessType", meta.businessType)
-            if (meta.fleetSize) setField("fleetSize", meta.fleetSize)
-            if (meta.teamSize) setField("teamSize", meta.teamSize)
-            if (meta.geographicScope) setField("geographicScope", meta.geographicScope)
-            if (meta.currentTool) setField("currentTool", meta.currentTool)
-            if (meta.freightTypes) setField("freightTypes", meta.freightTypes)
-            if (meta.primaryGoals) setField("primaryGoals", meta.primaryGoals)
-          } catch {}
+          // metadata is already an object
+          const meta = (existing.metadata as any) ?? {}
+          if (meta.dotNumber) setField("dotNumber", meta.dotNumber)
+          if (meta.mcNumber) setField("mcNumber", meta.mcNumber)
+          if (meta.businessType) setField("businessType", meta.businessType)
+          if (meta.fleetSize) setField("fleetSize", meta.fleetSize)
+          if (meta.teamSize) setField("teamSize", meta.teamSize)
+          if (meta.geographicScope) setField("geographicScope", meta.geographicScope)
+          if (meta.currentTool) setField("currentTool", meta.currentTool)
+          if (meta.freightTypes) setField("freightTypes", meta.freightTypes)
+          if (meta.primaryGoals) setField("primaryGoals", meta.primaryGoals)
         }
       } catch (err) {
         console.error("[ONBOARDING] check existing failed:", err)
@@ -232,6 +228,7 @@ export default function OnboardingPage() {
     mutationFn: async () => {
       console.log("[ONBOARDING] Finalizing setup...")
 
+      // Metadata must be an object (record<string, any>), not a JSON string
       const metadata = {
         dotNumber: draft.dotNumber.trim() || null,
         mcNumber: draft.mcNumber.trim() || null,
@@ -249,7 +246,7 @@ export default function OnboardingPage() {
       const result = await authClient.organization.create({
         name: draft.companyName.trim(),
         slug: draft.slug.trim(),
-        metadata: JSON.stringify(metadata),
+        metadata, // Pass as object, not JSON string
       })
 
       if (result.error) {
