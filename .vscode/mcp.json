@@ -8,10 +8,7 @@
       ]
     },
     "better-auth": {
-      "command": "bunx",
-      "args": [
-        "better-auth-mcp"
-      ]
+      "url": "https://mcp.better-auth.com/mcp"
     }
   }
 }
